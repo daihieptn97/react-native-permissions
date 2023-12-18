@@ -22,6 +22,7 @@ import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.common.build.ReactBuildConfig;
 import com.facebook.react.turbomodule.core.interfaces.TurboModule;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -86,9 +87,15 @@ public abstract class NativePermissionsModuleSpec extends ReactContextBaseJavaMo
     Map<String, Object> constants = getTypedExportedConstants();
 
     if (ReactBuildConfig.DEBUG || ReactBuildConfig.IS_INTERNAL_BUILD) {
+//      Set<String> obligatoryFlowConstants = new HashSet<>();
+//      Set<String> optionalFlowConstants = new HashSet<>(List.of("available"));
+//      Set<String> undeclaredConstants = new HashSet<>(constants.keySet());
+
       Set<String> obligatoryFlowConstants = new HashSet<>();
-      Set<String> optionalFlowConstants = new HashSet<>(List.of("available"));
+      Set<String> optionalFlowConstants = new HashSet<>(Arrays.asList("available"));
       Set<String> undeclaredConstants = new HashSet<>(constants.keySet());
+
+
 
       undeclaredConstants.removeAll(obligatoryFlowConstants);
       undeclaredConstants.removeAll(optionalFlowConstants);
