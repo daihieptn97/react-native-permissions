@@ -22,29 +22,38 @@
     NSMutableDictionary *result = [NSMutableDictionary new];
 
     if (settings.alertSetting != UNNotificationSettingNotSupported) {
-      [result setValue:@(settings.alertSetting == UNNotificationSettingEnabled) forKey:@"alert"];
+      bool value = settings.alertSetting == UNNotificationSettingEnabled;
+      [result setValue:@(value) forKey:@"alert"];
     }
     if (settings.badgeSetting != UNNotificationSettingNotSupported) {
-      [result setValue:@(settings.badgeSetting == UNNotificationSettingEnabled) forKey:@"badge"];
+      bool value = settings.badgeSetting == UNNotificationSettingEnabled;
+      [result setValue:@(value) forKey:@"badge"];
     }
     if (settings.soundSetting != UNNotificationSettingNotSupported) {
-      [result setValue:@(settings.soundSetting == UNNotificationSettingEnabled) forKey:@"sound"];
+      bool value = settings.soundSetting == UNNotificationSettingEnabled;
+      [result setValue:@(value) forKey:@"sound"];
     }
     if (settings.lockScreenSetting != UNNotificationSettingNotSupported) {
-      [result setValue:@(settings.lockScreenSetting == UNNotificationSettingEnabled) forKey:@"lockScreen"];
+      bool value = settings.lockScreenSetting == UNNotificationSettingEnabled;
+      [result setValue:@(value) forKey:@"lockScreen"];
     }
     if (settings.carPlaySetting != UNNotificationSettingNotSupported) {
-      [result setValue:@(settings.carPlaySetting == UNNotificationSettingEnabled) forKey:@"carPlay"];
+      bool value = settings.carPlaySetting == UNNotificationSettingEnabled;
+      [result setValue:@(value) forKey:@"carPlay"];
     }
     if (settings.notificationCenterSetting != UNNotificationSettingNotSupported) {
-      [result setValue:@(settings.notificationCenterSetting == UNNotificationSettingEnabled) forKey:@"notificationCenter"];
+      bool value = settings.notificationCenterSetting == UNNotificationSettingEnabled;
+      [result setValue:@(value) forKey:@"notificationCenter"];
     }
 
-    [result setValue:@(settings.providesAppNotificationSettings == true) forKey:@"providesAppSettings"];
-    [result setValue:@(settings.authorizationStatus == UNAuthorizationStatusProvisional) forKey:@"provisional"];
+    if (@available(iOS 12.0, *)) {
+      bool provisionalValue = settings.authorizationStatus == UNAuthorizationStatusProvisional;
+      [result setValue:@(provisionalValue) forKey:@"provisional"];
 
-    if (settings.criticalAlertSetting != UNNotificationSettingNotSupported) {
-      [result setValue:@(settings.criticalAlertSetting == UNNotificationSettingEnabled) forKey:@"criticalAlert"];
+      if (settings.criticalAlertSetting != UNNotificationSettingNotSupported) {
+        bool value = settings.criticalAlertSetting == UNNotificationSettingEnabled;
+        [result setValue:@(value) forKey:@"criticalAlert"];
+      }
     }
 
     switch (settings.authorizationStatus) {
@@ -70,7 +79,6 @@
   bool criticalAlert = [options containsObject:@"criticalAlert"];
   bool carPlay = [options containsObject:@"carPlay"];
   bool provisional = [options containsObject:@"provisional"];
-  bool providesAppSettings = [options containsObject:@"providesAppSettings"];
 
   UNAuthorizationOptions types = UNAuthorizationOptionNone;
 
@@ -86,14 +94,14 @@
   if (carPlay) {
     types += UNAuthorizationOptionCarPlay;
   }
-  if (criticalAlert) {
-    types += UNAuthorizationOptionCriticalAlert;
-  }
-  if (provisional) {
-    types += UNAuthorizationOptionProvisional;
-  }
-  if (providesAppSettings) {
-    types += UNAuthorizationOptionProvidesAppNotificationSettings;
+
+  if (@available(iOS 12.0, *)) {
+    if (criticalAlert) {
+      types += UNAuthorizationOptionCriticalAlert;
+    }
+    if (provisional) {
+      types += UNAuthorizationOptionProvisional;
+    }
   }
 
   if (!alert &&
@@ -101,8 +109,7 @@
       !sound &&
       !criticalAlert &&
       !carPlay &&
-      !provisional &&
-      !providesAppSettings) {
+      !provisional) {
     types += UNAuthorizationOptionAlert;
     types += UNAuthorizationOptionBadge;
     types += UNAuthorizationOptionSound;

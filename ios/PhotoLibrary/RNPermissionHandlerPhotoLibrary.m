@@ -51,36 +51,17 @@
   }
 }
 
-- (void)openPhotoPickerWithResolver:(RCTPromiseResolveBlock _Nonnull)resolve
-                           rejecter:(RCTPromiseRejectBlock _Nonnull)reject {
-  if (@available(iOS 14.0, *)) {
+- (void)openLimitedPhotoLibraryPickerWithResolver:(RCTPromiseResolveBlock _Nonnull)resolve
+                                         rejecter:(RCTPromiseRejectBlock _Nonnull)reject {
+  if (@available(iOS 14, *)) {
     if ([PHPhotoLibrary authorizationStatusForAccessLevel:PHAccessLevelReadWrite] != PHAuthorizationStatusLimited) {
       return reject(@"cannot_open_limited_picker", @"Photo library permission isn't limited", nil);
     }
 
-    UIViewController *viewController = RCTPresentedViewController();
-    PHPhotoLibrary *photoLibrary = [PHPhotoLibrary sharedPhotoLibrary];
+    UIViewController *presentedViewController = RCTPresentedViewController();
+    [[PHPhotoLibrary sharedPhotoLibrary] presentLimitedLibraryPickerFromViewController:presentedViewController];
 
-    if (@available(iOS 15, *)) {
-      [photoLibrary presentLimitedLibraryPickerFromViewController:viewController
-                                                completionHandler:^(__unused NSArray<NSString *> * _Nonnull assets) {
-        resolve(@(true));
-      }];
-    } else {
-      __block bool pickerVisible = false;
-      [photoLibrary presentLimitedLibraryPickerFromViewController:viewController];
-
-      [NSTimer scheduledTimerWithTimeInterval:0.1
-                                      repeats:true
-                                        block:^(NSTimer * _Nonnull timer) {
-        if ([RCTPresentedViewController() class] == [PHPickerViewController class]) {
-          pickerVisible = true;
-        } else if (pickerVisible) {
-          [timer invalidate];
-          resolve(@(true));
-        }
-      }];
-    }
+    resolve(@(true));
   } else {
     reject(@"cannot_open_limited_picker", @"Only available on iOS 14 or higher", nil);
   }

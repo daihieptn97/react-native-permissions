@@ -23,6 +23,10 @@
 - (void)checkWithResolver:(RCTPromiseResolveBlock _Nonnull)resolve
                  rejecter:(RCTPromiseRejectBlock _Nonnull)reject {
   if (@available(iOS 14, *)) {
+    if (![CLLocationManager locationServicesEnabled]) {
+      return reject(@"cannot_check_location_accuracy", @"Location services are disabled", nil);
+    }
+
     switch ([CLLocationManager authorizationStatus]) {
       case kCLAuthorizationStatusNotDetermined:
         return reject(@"cannot_check_location_accuracy", @"Location permission hasn't been requested first", nil);
@@ -51,6 +55,10 @@
                      resolver:(RCTPromiseResolveBlock _Nonnull)resolve
                      rejecter:(RCTPromiseRejectBlock _Nonnull)reject {
   if (@available(iOS 14, *)) {
+    if (![CLLocationManager locationServicesEnabled]) {
+      return reject(@"cannot_request_location_accuracy", @"Location services are disabled", nil);
+    }
+
     switch ([CLLocationManager authorizationStatus]) {
       case kCLAuthorizationStatusNotDetermined:
         return reject(@"cannot_request_location_accuracy", @"Location permission hasn't been requested first", nil);

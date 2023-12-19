@@ -1,9 +1,11 @@
 package com.zoontek.rnpermissions;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
@@ -11,14 +13,14 @@ import android.os.Process;
 import android.provider.Settings;
 import android.util.SparseArray;
 
-import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.core.app.NotificationManagerCompat;
 
-import com.facebook.common.logging.FLog;
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
+import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.WritableMap;
@@ -28,16 +30,16 @@ import com.facebook.react.modules.core.PermissionAwareActivity;
 import com.facebook.react.modules.core.PermissionListener;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 
-@ReactModule(name = RNPermissionsModule.NAME)
-public class RNPermissionsModule extends NativePermissionsModuleSpec implements PermissionListener {
+@ReactModule(name = RNPermissionsModule.MODULE_NAME)
+public class RNPermissionsModule extends ReactContextBaseJavaModule implements PermissionListener {
 
   private static final String ERROR_INVALID_ACTIVITY = "E_INVALID_ACTIVITY";
-  public static final String NAME = "RNPermissionsModule";
+  public static final String MODULE_NAME = "RNPermissions";
+  private static final String SETTING_NAME = "@RNPermissions:NonRequestables";
 
-  private final SparseArray<Callback> mCallbacks;
+  private final SharedPreferences mSharedPrefs;
+  private final SparseArray<Request> mRequests;
   private int mRequestCode = 0;
   private final String GRANTED = "granted";
   private final String DENIED = "denied";
@@ -46,49 +48,118 @@ public class RNPermissionsModule extends NativePermissionsModuleSpec implements 
 
   public RNPermissionsModule(ReactApplicationContext reactContext) {
     super(reactContext);
-    mCallbacks = new SparseArray<Callback>();
+    mSharedPrefs = reactContext.getSharedPreferences(SETTING_NAME, Context.MODE_PRIVATE);
+    mRequests = new SparseArray<Request>();
   }
 
   @Override
   public String getName() {
-    return NAME;
+    return MODULE_NAME;
   }
 
-  private boolean isPermissionUnavailable(@NonNull final String permission) {
-    String fieldName = permission
-      .replace("android.permission.", "")
-      .replace("com.android.voicemail.permission.", "");
+  private class Request {
 
-    try {
-      Manifest.permission.class.getField(fieldName);
-      return false;
-    } catch (NoSuchFieldException ignored) {
-      return true;
+    public boolean[] rationaleStatuses;
+    public Callback callback;
+
+    public Request(boolean[] rationaleStatuses, Callback callback) {
+      this.rationaleStatuses = rationaleStatuses;
+      this.callback = callback;
     }
   }
 
-  // Only used on Android < 13 (the POST_NOTIFICATIONS runtime permission isn't available)
-  private WritableMap getLegacyNotificationsResponse(String disabledStatus) {
-    final boolean enabled = NotificationManagerCompat
-      .from(getReactApplicationContext()).areNotificationsEnabled();
+  private @Nullable String getFieldName(final String permission) {
+    if (permission.equals("android.permission.ACCEPT_HANDOVER"))
+      return "ACCEPT_HANDOVER";
+    if (permission.equals("android.permission.ACCESS_BACKGROUND_LOCATION"))
+      return "ACCESS_BACKGROUND_LOCATION";
+    if (permission.equals("android.permission.ACCESS_COARSE_LOCATION"))
+      return "ACCESS_COARSE_LOCATION";
+    if (permission.equals("android.permission.ACCESS_FINE_LOCATION"))
+      return "ACCESS_FINE_LOCATION";
+    if (permission.equals("com.android.voicemail.permission.ADD_VOICEMAIL"))
+      return "ADD_VOICEMAIL";
+    if (permission.equals("android.permission.ACTIVITY_RECOGNITION"))
+      return "ACTIVITY_RECOGNITION";
+    if (permission.equals("android.permission.ANSWER_PHONE_CALLS"))
+      return "ANSWER_PHONE_CALLS";
+    if (permission.equals("android.permission.BODY_SENSORS"))
+      return "BODY_SENSORS";
+    if (permission.equals("android.permission.CALL_PHONE"))
+      return "CALL_PHONE";
+    if (permission.equals("android.permission.CAMERA"))
+      return "CAMERA";
+    if (permission.equals("android.permission.GET_ACCOUNTS"))
+      return "GET_ACCOUNTS";
+    if (permission.equals("android.permission.PROCESS_OUTGOING_CALLS"))
+      return "PROCESS_OUTGOING_CALLS";
+    if (permission.equals("android.permission.READ_CALENDAR"))
+      return "READ_CALENDAR";
+    if (permission.equals("android.permission.READ_CALL_LOG"))
+      return "READ_CALL_LOG";
+    if (permission.equals("android.permission.READ_CONTACTS"))
+      return "READ_CONTACTS";
+    if (permission.equals("android.permission.READ_EXTERNAL_STORAGE"))
+      return "READ_EXTERNAL_STORAGE";
+    if (permission.equals("android.permission.READ_PHONE_NUMBERS"))
+      return "READ_PHONE_NUMBERS";
+    if (permission.equals("android.permission.READ_PHONE_STATE"))
+      return "READ_PHONE_STATE";
+    if (permission.equals("android.permission.READ_SMS"))
+      return "READ_SMS";
+    if (permission.equals("android.permission.RECEIVE_MMS"))
+      return "RECEIVE_MMS";
+    if (permission.equals("android.permission.RECEIVE_SMS"))
+      return "RECEIVE_SMS";
+    if (permission.equals("android.permission.RECEIVE_WAP_PUSH"))
+      return "RECEIVE_WAP_PUSH";
+    if (permission.equals("android.permission.RECORD_AUDIO"))
+      return "RECORD_AUDIO";
+    if (permission.equals("android.permission.SEND_SMS"))
+      return "SEND_SMS";
+    if (permission.equals("android.permission.USE_SIP"))
+      return "USE_SIP";
+    if (permission.equals("android.permission.WRITE_CALENDAR"))
+      return "WRITE_CALENDAR";
+    if (permission.equals("android.permission.WRITE_CALL_LOG"))
+      return "WRITE_CALL_LOG";
+    if (permission.equals("android.permission.WRITE_CONTACTS"))
+      return "WRITE_CONTACTS";
+    if (permission.equals("android.permission.WRITE_EXTERNAL_STORAGE"))
+      return "WRITE_EXTERNAL_STORAGE";
 
-    final WritableMap output = Arguments.createMap();
-    final WritableMap settings = Arguments.createMap();
+    return null;
+  }
 
-    output.putString("status", enabled ? GRANTED : disabledStatus);
-    output.putMap("settings", settings);
+  private boolean permissionExists(final String permission) {
+    String fieldName = getFieldName(permission);
 
-    return output;
+    if (fieldName == null)
+      return false;
+
+    try {
+      Manifest.permission.class.getField(fieldName);
+      return true;
+    } catch (NoSuchFieldException ignored) {
+      return false;
+    }
   }
 
   @ReactMethod
   public void checkNotifications(final Promise promise) {
-    promise.resolve(getLegacyNotificationsResponse(DENIED));
-  }
+    final boolean enabled = NotificationManagerCompat
+      .from(getReactApplicationContext()).areNotificationsEnabled();
+    final WritableMap output = Arguments.createMap();
+    final WritableMap settings = Arguments.createMap();
 
-  @Override
-  public void requestNotifications(final ReadableArray options, final Promise promise) {
-    promise.resolve(getLegacyNotificationsResponse(BLOCKED));
+    if (enabled) {
+      output.putString("status", "granted");
+    } else {
+      output.putString("status", "blocked");
+    }
+
+    output.putMap("settings", settings);
+    promise.resolve(output);
   }
 
   @ReactMethod
@@ -110,8 +181,8 @@ public class RNPermissionsModule extends NativePermissionsModuleSpec implements 
   }
 
   @ReactMethod
-  public void check(final String permission, final Promise promise) {
-    if (permission == null || isPermissionUnavailable(permission)) {
+  public void checkPermission(final String permission, final Promise promise) {
+    if (permission == null || !permissionExists(permission)) {
       promise.resolve(UNAVAILABLE);
       return;
     }
@@ -128,18 +199,19 @@ public class RNPermissionsModule extends NativePermissionsModuleSpec implements 
 
     if (context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
       promise.resolve(GRANTED);
+    } else if (mSharedPrefs.getBoolean(permission, false)) {
+      promise.resolve(BLOCKED);
     } else {
       promise.resolve(DENIED);
     }
   }
 
   @ReactMethod
-  public void shouldShowRequestRationale(final String permission, final Promise promise) {
+  public void shouldShowRequestPermissionRationale(final String permission, final Promise promise) {
     if (permission == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
       promise.resolve(false);
       return;
     }
-
     try {
       promise.resolve(
         getPermissionAwareActivity().shouldShowRequestPermissionRationale(permission));
@@ -149,8 +221,8 @@ public class RNPermissionsModule extends NativePermissionsModuleSpec implements 
   }
 
   @ReactMethod
-  public void request(final String permission, final Promise promise) {
-    if (permission == null || isPermissionUnavailable(permission)) {
+  public void requestPermission(final String permission, final Promise promise) {
+    if (permission == null || !permissionExists(permission)) {
       promise.resolve(UNAVAILABLE);
       return;
     }
@@ -168,14 +240,20 @@ public class RNPermissionsModule extends NativePermissionsModuleSpec implements 
     if (context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
       promise.resolve(GRANTED);
       return;
+    } else if (mSharedPrefs.getBoolean(permission, false)) {
+      promise.resolve(BLOCKED); // not supporting reset the permission with "Ask me every time"
+      return;
     }
 
     try {
       PermissionAwareActivity activity = getPermissionAwareActivity();
+      boolean[] rationaleStatuses = new boolean[1];
+      rationaleStatuses[0] = activity.shouldShowRequestPermissionRationale(permission);
 
-      mCallbacks.put(
-        mRequestCode,
+      mRequests.put(mRequestCode, new Request(
+        rationaleStatuses,
         new Callback() {
+          @SuppressLint("ApplySharedPref")
           @Override
           public void invoke(Object... args) {
             int[] results = (int[]) args[0];
@@ -184,15 +262,18 @@ public class RNPermissionsModule extends NativePermissionsModuleSpec implements 
               promise.resolve(GRANTED);
             } else {
               PermissionAwareActivity activity = (PermissionAwareActivity) args[1];
+              boolean[] rationaleStatuses = (boolean[]) args[2];
 
-              if (activity.shouldShowRequestPermissionRationale(permission)) {
-                promise.resolve(DENIED);
-              } else {
+              if (rationaleStatuses[0] &&
+                !activity.shouldShowRequestPermissionRationale(permission)) {
+                mSharedPrefs.edit().putBoolean(permission, true).commit(); // enforce sync
                 promise.resolve(BLOCKED);
+              } else {
+                promise.resolve(DENIED);
               }
             }
           }
-        });
+        }));
 
       activity.requestPermissions(new String[] {permission}, mRequestCode, this);
       mRequestCode++;
@@ -202,14 +283,14 @@ public class RNPermissionsModule extends NativePermissionsModuleSpec implements 
   }
 
   @ReactMethod
-  public void checkMultiple(final ReadableArray permissions, final Promise promise) {
+  public void checkMultiplePermissions(final ReadableArray permissions, final Promise promise) {
     final WritableMap output = new WritableNativeMap();
     Context context = getReactApplicationContext().getBaseContext();
 
     for (int i = 0; i < permissions.size(); i++) {
       String permission = permissions.getString(i);
 
-      if (isPermissionUnavailable(permission)) {
+      if (!permissionExists(permission)) {
         output.putString(permission, UNAVAILABLE);
       } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
         output.putString(
@@ -220,6 +301,8 @@ public class RNPermissionsModule extends NativePermissionsModuleSpec implements 
             : BLOCKED);
       } else if (context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
         output.putString(permission, GRANTED);
+      } else if (mSharedPrefs.getBoolean(permission, false)) {
+        output.putString(permission, BLOCKED); // not supporting reset the permission with "Ask me every time"
       } else {
         output.putString(permission, DENIED);
       }
@@ -229,16 +312,17 @@ public class RNPermissionsModule extends NativePermissionsModuleSpec implements 
   }
 
   @ReactMethod
-  public void requestMultiple(final ReadableArray permissions, final Promise promise) {
+  public void requestMultiplePermissions(final ReadableArray permissions, final Promise promise) {
     final WritableMap output = new WritableNativeMap();
     final ArrayList<String> permissionsToCheck = new ArrayList<String>();
     int checkedPermissionsCount = 0;
+
     Context context = getReactApplicationContext().getBaseContext();
 
     for (int i = 0; i < permissions.size(); i++) {
       String permission = permissions.getString(i);
 
-      if (isPermissionUnavailable(permission)) {
+      if (!permissionExists(permission)) {
         output.putString(permission, UNAVAILABLE);
         checkedPermissionsCount++;
       } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
@@ -252,6 +336,9 @@ public class RNPermissionsModule extends NativePermissionsModuleSpec implements 
         checkedPermissionsCount++;
       } else if (context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
         output.putString(permission, GRANTED);
+        checkedPermissionsCount++;
+      } else if (mSharedPrefs.getBoolean(permission, false)) {
+        output.putString(permission, BLOCKED); // not supporting reset the permission with "Ask me every time"
         checkedPermissionsCount++;
       } else {
         permissionsToCheck.add(permission);
@@ -265,14 +352,22 @@ public class RNPermissionsModule extends NativePermissionsModuleSpec implements 
 
     try {
       PermissionAwareActivity activity = getPermissionAwareActivity();
+      boolean[] rationaleStatuses = new boolean[permissions.size()];
 
-      mCallbacks.put(
-        mRequestCode,
+      for (int i = 0; i < permissions.size(); i++) {
+        rationaleStatuses[i] = activity
+          .shouldShowRequestPermissionRationale(permissions.getString(i));
+      }
+
+      mRequests.put(mRequestCode, new Request(
+        rationaleStatuses,
         new Callback() {
+          @SuppressLint("ApplySharedPref")
           @Override
           public void invoke(Object... args) {
             int[] results = (int[]) args[0];
             PermissionAwareActivity activity = (PermissionAwareActivity) args[1];
+            boolean[] rationaleStatuses = (boolean[]) args[2];
 
             for (int j = 0; j < permissionsToCheck.size(); j++) {
               String permission = permissionsToCheck.get(j);
@@ -280,17 +375,19 @@ public class RNPermissionsModule extends NativePermissionsModuleSpec implements 
               if (results.length > 0 && results[j] == PackageManager.PERMISSION_GRANTED) {
                 output.putString(permission, GRANTED);
               } else {
-                if (activity.shouldShowRequestPermissionRationale(permission)) {
-                  output.putString(permission, DENIED);
-                } else {
+                if (rationaleStatuses[j] &&
+                  !activity.shouldShowRequestPermissionRationale(permission)) {
+                  mSharedPrefs.edit().putBoolean(permission, true).commit(); // enforce sync
                   output.putString(permission, BLOCKED);
+                } else {
+                  output.putString(permission, DENIED);
                 }
               }
             }
 
             promise.resolve(output);
           }
-        });
+        }));
 
       activity.requestPermissions(permissionsToCheck.toArray(new String[0]), mRequestCode, this);
       mRequestCode++;
@@ -300,49 +397,15 @@ public class RNPermissionsModule extends NativePermissionsModuleSpec implements 
   }
 
   @Override
-  protected Map<String, Object> getTypedExportedConstants() {
-    return new HashMap<>();
-  }
-
-  @Override
-  public void checkLocationAccuracy(Promise promise) {
-    promise.reject("Permissions:checkLocationAccuracy", "checkLocationAccuracy is not supported on Android");
-  }
-
-  @Override
-  public void requestLocationAccuracy(String purposeKey, Promise promise) {
-    promise.reject("Permissions:requestLocationAccuracy", "requestLocationAccuracy is not supported on Android");
-  }
-
-  @Override
-  public void openPhotoPicker(Promise promise) {
-    promise.reject("Permissions:openPhotoPicker", "openPhotoPicker is not supported on Android");
-  }
-
-  @Override
   public boolean onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-    try {
-      mCallbacks.get(requestCode).invoke(grantResults, getPermissionAwareActivity());
-      mCallbacks.remove(requestCode);
-      return mCallbacks.size() == 0;
-    } catch (IllegalStateException e) {
-      FLog.e(
-        "PermissionsModule",
-        e,
-        "Unexpected invocation of `onRequestPermissionsResult` with invalid current activity");
-      return false;
-    } catch (NullPointerException e) {
-      FLog.e(
-        "PermissionsModule",
-        e,
-        "Unexpected invocation of `onRequestPermissionsResult` with invalid request code");
-      return false;
-    }
+    Request request = mRequests.get(requestCode);
+    request.callback.invoke(grantResults, getPermissionAwareActivity(), request.rationaleStatuses);
+    mRequests.remove(requestCode);
+    return mRequests.size() == 0;
   }
 
   private PermissionAwareActivity getPermissionAwareActivity() {
     Activity activity = getCurrentActivity();
-
     if (activity == null) {
       throw new IllegalStateException(
         "Tried to use permissions API while not attached to an " + "Activity.");
@@ -351,7 +414,6 @@ public class RNPermissionsModule extends NativePermissionsModuleSpec implements 
         "Tried to use permissions API but the host Activity doesn't"
           + " implement PermissionAwareActivity.");
     }
-
     return (PermissionAwareActivity) activity;
   }
 }

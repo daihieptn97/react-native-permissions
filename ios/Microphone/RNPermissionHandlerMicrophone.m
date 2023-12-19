@@ -14,19 +14,22 @@
 
 - (void)checkWithResolver:(void (^ _Nonnull)(RNPermissionStatus))resolve
                  rejecter:(void (__unused ^ _Nonnull)(NSError * _Nonnull))reject {
-  switch ([[AVAudioSession sharedInstance] recordPermission]) {
-    case AVAudioSessionRecordPermissionUndetermined:
+  switch ([AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio]) {
+    case AVAuthorizationStatusNotDetermined:
       return resolve(RNPermissionStatusNotDetermined);
-    case AVAudioSessionRecordPermissionDenied:
+    case AVAuthorizationStatusRestricted:
+      return resolve(RNPermissionStatusRestricted);
+    case AVAuthorizationStatusDenied:
       return resolve(RNPermissionStatusDenied);
-    case AVAudioSessionRecordPermissionGranted:
+    case AVAuthorizationStatusAuthorized:
       return resolve(RNPermissionStatusAuthorized);
   }
 }
 
 - (void)requestWithResolver:(void (^ _Nonnull)(RNPermissionStatus))resolve
                    rejecter:(void (^ _Nonnull)(NSError * _Nonnull))reject {
-  [[AVAudioSession sharedInstance] requestRecordPermission:^(__unused BOOL granted) {
+  [AVCaptureDevice requestAccessForMediaType:AVMediaTypeAudio
+                           completionHandler:^(__unused BOOL granted) {
     [self checkWithResolver:resolve rejecter:reject];
   }];
 }

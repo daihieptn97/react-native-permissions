@@ -14,7 +14,10 @@
 @implementation RNPermissionHandlerLocationAlways
 
 + (NSArray<NSString *> * _Nonnull)usageDescriptionKeys {
-  return @[@"NSLocationAlwaysAndWhenInUseUsageDescription"];
+  return @[
+    @"NSLocationAlwaysAndWhenInUseUsageDescription",
+    @"NSLocationAlwaysUsageDescription",
+  ];
 }
 
 + (NSString * _Nonnull)handlerUniqueId {
@@ -23,6 +26,10 @@
 
 - (void)checkWithResolver:(void (^ _Nonnull)(RNPermissionStatus))resolve
                  rejecter:(void (__unused ^ _Nonnull)(NSError * _Nonnull))reject {
+  if (![CLLocationManager locationServicesEnabled]) {
+    return resolve(RNPermissionStatusNotAvailable);
+  }
+
   switch ([CLLocationManager authorizationStatus]) {
     case kCLAuthorizationStatusNotDetermined:
       return resolve(RNPermissionStatusNotDetermined);
@@ -38,6 +45,9 @@
 
 - (void)requestWithResolver:(void (^ _Nonnull)(RNPermissionStatus))resolve
                    rejecter:(void (^ _Nonnull)(NSError * _Nonnull))reject {
+  if (![CLLocationManager locationServicesEnabled]) {
+    return resolve(RNPermissionStatusNotAvailable);
+  }
   if ([CLLocationManager authorizationStatus] != kCLAuthorizationStatusNotDetermined) {
     return [self checkWithResolver:resolve rejecter:reject];
   }
